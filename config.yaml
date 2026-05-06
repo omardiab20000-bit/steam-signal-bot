@@ -1,7 +1,7 @@
 bot:
   scan_minutes: 60
-  alert_threshold: 60
-  cooldown_hours: 18
+  alert_threshold: 68
+  cooldown_hours: 24
   max_discovery_games: 35
   max_reviews_per_game: 100
   min_reviews_for_confidence: 25
