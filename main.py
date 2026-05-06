@@ -601,7 +601,8 @@ async def scan_once():
     cfg = load_config()
     state = load_state()
 
-    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+    webhook_url = os.getenv("https://discord.com/api/webhooks/1501707856402190398/EP-sWk4gaHfOXlOOtt8bes9Cbalgr_GJ6kDkvf_CEZ5RoDUrtzq67DVw3t1tBvwIEK2F
+")
     if not webhook_url:
         raise RuntimeError("Missing DISCORD_WEBHOOK_URL Railway variable.")
 
