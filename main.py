@@ -294,6 +294,22 @@ def arabic(cfg, key):
     return cfg.get("arabic", {}).get("lines", {}).get(key, "")
 
 
+def simplify_check(text):
+    replacements = {
+        "Atmosphere/vibe is repeatedly showing up": "Strong atmosphere and visual identity",
+        "Players keep tying the fun to friends/co-op": "Social/co-op interest rising",
+        "Players describe the gameplay loop as sticky": "Gameplay loop keeping attention",
+        "Mystery/worldbuilding is fueling curiosity": "Curiosity around gameplay is rising",
+        "Cinematic/visual appeal is carrying attention": "Visual presentation is catching attention",
+        "Crossover interest detected from related gaming communities": "Related communities are starting to notice"
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    return text
+
+
 def analyze_game(app, reviews, players, previous, cfg):
     blob = " ".join(r["text"] for r in reviews)
     review_count = len(reviews)
@@ -414,133 +430,85 @@ def analyze_game(app, reviews, players, previous, cfg):
 
 def status_from_score(score):
     if score >= 85:
-        return "🔥 High Watch"
+        return "High Watch"
     if score >= 68:
-        return "👀 Worth watching"
+        return "Worth Watching"
     if score >= 50:
-        return "⏳ Watchlist only"
-    return "💤 Ignore for now"
+        return "Early Attention"
+    return "Ignore"
 
 
 def color_from_score(score):
     if score >= 85:
-        return 0x22C55E
+        return 0x00FF99
     if score >= 68:
-        return 0xF59E0B
+        return 0xFFB800
     if score >= 50:
         return 0x3B82F6
     return 0x6B7280
 
 
-def english_arabic_for_check(cfg, title):
-    if "Atmosphere" in title:
-        return arabic(cfg, "atmosphere")
-    if "Visual" in title:
-        return arabic(cfg, "visual")
-    if "Social" in title:
-        return arabic(cfg, "social")
-    if "Loop" in title:
-        return arabic(cfg, "loop")
-    if "Momentum" in title:
-        return arabic(cfg, "momentum")
-    if "Community" in title:
-        return arabic(cfg, "overlap")
-    return "في إشارات إيجابية، بس نحتاج بيانات أكثر"
-
-
 def build_discord_embed(app, analysis, players, instant_price, cfg):
+    checks = []
 
-checks = []
+    for c in analysis["checks"][:2]:
+        checks.append(f"✅ {simplify_check(c['summary'])}")
 
-for c in analysis["checks"][:2]:
+    if not checks:
+        checks.append("✅ Early attention forming")
 
-    text = c["summary"]
+    audience = ""
+    if analysis["overlaps"]:
+        overlap_names = [o["label"] for o in analysis["overlaps"][:2]]
+        audience = "\n\n🎯 **Audience pull**\n" + "\n".join([f"• {name}" for name in overlap_names])
 
-    text = text.replace(
-        "Atmosphere/vibe is repeatedly showing up",
-        "Strong atmosphere and visual identity"
-    )
+    price_text = f"💰 **Price**\nSteam — {app.get('steam_price', 'N/A')}"
+    if instant_price:
+        price_text += f"\nInstant Gaming — {instant_price}"
 
-    text = text.replace(
-        "Players keep tying the fun to friends/co-op",
-        "Social/co-op interest rising"
-    )
+    risk = analysis["risks"][0]
 
-    text = text.replace(
-        "Players describe the gameplay loop as sticky",
-        "Gameplay loop keeping attention"
-    )
-
-    text = text.replace(
-        "Mystery/worldbuilding is fueling curiosity",
-        "Curiosity around gameplay is rising"
-    )
-
-    checks.append(f"✅ {text}")
-
-checks_text = "\n".join(checks)
-
-audience = ""
-
-if analysis["overlaps"]:
-
-    overlap_names = []
-
-    for o in analysis["overlaps"][:2]:
-        overlap_names.append(o["label"])
-
-    audience = "\n🎮 " + "\n🎮 ".join(overlap_names)
-
-price_text = f"💰 Steam — {app.get('steam_price', 'N/A')}"
-
-if instant_price:
-    price_text += f"\n💰 Instant Gaming — {instant_price}"
-
-embed = {
-    "title": "👀 ALL EYES ON THIS",
-
-    "url": app["steam_url"],
-
-    "description": (
-        f"🎮 **{app['name']}**\n\n"
-
-        f"🟡 Score — **{analysis['score']}/100**\n"
-        f"🟢 Reviews — **{analysis['positive_ratio']}% Positive**\n"
-        f"🟢 Players — **{players:,} Active**\n\n"
-
-        f"{checks_text}\n\n"
-
-        f"⚠️ {analysis['risks'][0]}\n\n"
-
-        f"{price_text}\n"
-
+    description = (
+        f"```yaml\n"
+        f"Game: {app['name']}\n"
+        f"Score: {analysis['score']}/100\n"
+        f"Players: {players:,}\n"
+        f"Reviews: {analysis['positive_ratio']}% positive\n"
+        f"Signal: {status_from_score(analysis['score'])}\n"
+        f"```\n"
+        f"{checks[0]}\n"
+        f"{checks[1] if len(checks) > 1 else ''}\n\n"
+        f"⚠️ **Risk**\n{risk}\n\n"
+        f"{price_text}"
         f"{audience}\n\n"
-
-        f"👀 Momentum is building naturally\n"
+        f"👀 **Read**\nMomentum is building naturally.\n"
         f"واضح الاهتمام عم يكبر بسرعة"
-    ),
+    )
 
-    "color": color_from_score(analysis["score"]),
-
-    "footer": {
-        "text": f"Steam Signal Bot • AppID {app['appid']}"
-    }
-}
-
-if app.get("header_image"):
-    embed["thumbnail"] = {
-        "url": app["header_image"]
+    embed = {
+        "title": f"🔥 {app['name']} gaining traction",
+        "url": app["steam_url"],
+        "description": description[:4096],
+        "color": color_from_score(analysis["score"]),
+        "footer": {
+            "text": f"Steam Signal Bot • AppID {app['appid']}"
+        }
     }
 
-return embed
+    if app.get("header_image"):
+        embed["image"] = {
+            "url": app["header_image"]
+        }
+
+    return embed
 
 
 def can_send_alert(appid, analysis, cfg, state):
-    threshold = float(cfg["bot"].get("alert_threshold", 60))
+    threshold = float(cfg["bot"].get("alert_threshold", 68))
     if analysis["score"] < threshold:
         return False
 
-    cooldown = int(cfg["bot"].get("cooldown_hours", 18)) * 3600
+    cooldown = int(cfg["bot"].get("cooldown_hours", 24)) * 3600
     last = int(state["last_alerts"].get(str(appid), 0))
     return ts_now() - last >= cooldown
 
@@ -594,13 +562,12 @@ async def scan_once():
     if not webhook_url:
         raise RuntimeError("Missing DISCORD_WEBHOOK_URL Railway variable.")
 
-    # Send startup message only once per container start.
     if not state.get("startup_sent"):
         await send_discord(
             webhook_url,
             {
                 "title": "🟢 Steam Signal Bot Online",
-                "description": "System initialized successfully. Balanced scan mode is active.",
+                "description": "System initialized successfully. Premium compact mode is active.",
                 "color": 5763719,
                 "fields": []
             },
