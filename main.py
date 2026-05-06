@@ -415,9 +415,9 @@ def analyze_game(app, reviews, players, previous, cfg):
 def status_from_score(score):
     if score >= 85:
         return "🔥 High Watch"
-    if score >= 60:
+    if score >= 68:
         return "👀 Worth watching"
-    if score >= 45:
+    if score >= 50:
         return "⏳ Watchlist only"
     return "💤 Ignore for now"
 
@@ -425,9 +425,9 @@ def status_from_score(score):
 def color_from_score(score):
     if score >= 85:
         return 0x22C55E
-    if score >= 60:
+    if score >= 68:
         return 0xF59E0B
-    if score >= 45:
+    if score >= 50:
         return 0x3B82F6
     return 0x6B7280
 
@@ -449,85 +449,66 @@ def english_arabic_for_check(cfg, title):
 
 
 def build_discord_embed(app, analysis, players, instant_price, cfg):
-    title = f"🧠 SIGNAL DETECTED — {app['name']}"
+    title = f"👀 ALL EYES ON THIS"
+
     desc = (
-        "👀 Attention levels are rising based on review/player signals.\n"
-        f"{arabic(cfg, 'attention')}\n\n"
-        f"{analysis['hype_icon']} **Hype Type:** {analysis['hype_label']}\n"
-        f"🎯 **Current Status:** {status_from_score(analysis['score'])}"
+        f"🎮 **{app['name']}**\n\n"
+        f"🟡 Score — **{analysis['score']}/100**\n"
+        f"🟢 Reviews — **{analysis['positive_ratio']}% Positive**\n"
+        f"🟢 Players — **{players:,} Active**\n"
     )
 
     fields = []
 
-    fields.append({
-        "name": "⭐ Community Mood",
-        "value": f"{analysis['mood']}\n{analysis['mood_ar']}",
-        "inline": False
-    })
+    strong_checks = []
 
-    price_lines = [f"💲 Steam — **{app.get('steam_price', 'N/A')}**"]
-    if instant_price:
-        price_lines.append(f"💰 Instant Gaming — **{instant_price}**")
-    else:
-        price_lines.append("💰 Instant Gaming — not checked")
-    fields.append({
-        "name": "💵 Price Check",
-        "value": "\n".join(price_lines),
-        "inline": True
-    })
+    for c in analysis["checks"][:2]:
+        text = c['summary']
+        text = text.replace("Atmosphere/vibe is repeatedly showing up", "Strong atmosphere and visual identity")
+        text = text.replace("Players keep tying the fun to friends/co-op", "Social/co-op interest rising")
+        text = text.replace("Players describe the gameplay loop as sticky", "Gameplay loop keeping attention")
+        text = text.replace("Mystery/worldbuilding is fueling curiosity", "Curiosity around gameplay is rising")
+
+        strong_checks.append(f"✅ {text}")
 
     fields.append({
-        "name": "📊 Signal Data",
-        "value": (
-            f"Signal Score — **{analysis['score']}/100**\n"
-            f"Confidence — **{analysis['confidence']}**\n"
-            f"Players — **{players:,}**\n"
-            f"Recent Reviews — **{analysis['positive_ratio']}% positive**"
-        ),
-        "inline": True
-    })
-
-    check_lines = []
-    for c in analysis["checks"]:
-        check_lines.append(f"✅ **{c['title']}**\n{c['icon']} {c['summary']}\n{english_arabic_for_check(cfg, c['title'])}")
-    fields.append({
-        "name": "🔥 System Checks",
-        "value": "\n\n".join(check_lines)[:1000],
+        "name": "━━━━━━━━━━━━━━━",
+        "value": "\n".join(strong_checks),
         "inline": False
     })
 
     if analysis["overlaps"]:
         overlap_lines = []
-        for o in analysis["overlaps"]:
-            overlap_lines.append(f"{o['icon']} {o['label']}")
+
+        for o in analysis["overlaps"][:2]:
+            overlap_lines.append(f"🎮 {o['label']}")
+
         fields.append({
-            "name": "🧭 Interest Overlap",
-            "value": "\n".join(overlap_lines) + f"\n{arabic(cfg, 'overlap')}",
+            "name": "🎯 Audience Pull",
+            "value": "\n".join(overlap_lines),
             "inline": False
         })
 
     fields.append({
         "name": "⚠️ Watch Point",
-        "value": f"{analysis['risks'][0]}\n{arabic(cfg, 'risk')}",
+        "value": analysis["risks"][0],
         "inline": False
     })
 
-    if analysis["positive_hits"]:
-        top = ", ".join([x["keyword"] for x in analysis["positive_hits"][:5]])
-        fields.append({
-            "name": "🧩 Repeated Positive Signals",
-            "value": top,
-            "inline": False
-        })
+    price_text = f"💰 Steam — {app.get('steam_price', 'N/A')}"
 
-    system_read = "Strong breakout signal detected." if analysis["score"] >= 85 else (
-        "Balanced watch signal detected." if analysis["score"] >= 60 else
-        "Early signal forming, but not confirmed yet."
-    )
+    if instant_price:
+        price_text += f"\n💰 Instant Gaming — {instant_price}"
 
     fields.append({
-        "name": "🎯 SYSTEM READ",
-        "value": f"{system_read}\n{arabic(cfg, 'read')}",
+        "name": "💵 Price Check",
+        "value": price_text,
+        "inline": False
+    })
+
+    fields.append({
+        "name": "👀 Current Read",
+        "value": "Momentum is building naturally.\nواضح الاهتمام عم يكبر بسرعة",
         "inline": False
     })
 
@@ -536,14 +517,14 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
         "url": app["steam_url"],
         "description": desc[:4096],
         "color": color_from_score(analysis["score"]),
-        "fields": fields[:12],
+        "fields": fields[:6],
         "footer": {
-            "text": f"Steam Signal Bot • AppID {app['appid']} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+            "text": f"Steam Signal Bot • AppID {app['appid']}"
         }
     }
 
     if app.get("header_image"):
-        embed["image"] = {"url": app["header_image"]}
+        embed["thumbnail"] = {"url": app["header_image"]}
 
     return embed
 
