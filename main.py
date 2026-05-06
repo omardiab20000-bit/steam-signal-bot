@@ -449,54 +449,90 @@ def color_from_score(score):
 
 
 def build_discord_embed(app, analysis, players, instant_price, cfg):
-    checks = []
+
+    signal = "🟢 Strong"
+    if analysis["score"] < 85:
+        signal = "🟡 Building"
+    if analysis["score"] < 68:
+        signal = "🔵 Early"
+
+    short_checks = []
 
     for c in analysis["checks"][:2]:
-        checks.append(f"✅ {simplify_check(c['summary'])}")
 
-    if not checks:
-        checks.append("✅ Early attention forming")
+        text = simplify_check(c["summary"])
 
-    audience = ""
+        text = text.replace(
+            "Strong atmosphere and visual identity",
+            "Visual identity catching attention"
+        )
+
+        text = text.replace(
+            "Gameplay loop keeping attention",
+            "Gameplay loop is sticking"
+        )
+
+        text = text.replace(
+            "Social/co-op interest rising",
+            "Co-op/social interest increasing"
+        )
+
+        short_checks.append(f"• {text}")
+
+    if not short_checks:
+        short_checks.append("• Early attention forming")
+
+    overlap_text = ""
+
     if analysis["overlaps"]:
-        overlap_names = [o["label"] for o in analysis["overlaps"][:2]]
-        audience = "\n\n🎯 **Audience pull**\n" + "\n".join([f"• {name}" for name in overlap_names])
+        overlap_names = []
 
-    price_text = f"💰 **Price**\nSteam — {app.get('steam_price', 'N/A')}"
-    if instant_price:
-        price_text += f"\nInstant Gaming — {instant_price}"
+        for o in analysis["overlaps"][:2]:
+            overlap_names.append(o["label"])
+
+        overlap_text = " | ".join(overlap_names)
 
     risk = analysis["risks"][0]
 
-    description = (
-        f"```yaml\n"
-        f"Game: {app['name']}\n"
-        f"Score: {analysis['score']}/100\n"
-        f"Players: {players:,}\n"
-        f"Reviews: {analysis['positive_ratio']}% positive\n"
-        f"Signal: {status_from_score(analysis['score'])}\n"
-        f"```\n"
-        f"{checks[0]}\n"
-        f"{checks[1] if len(checks) > 1 else ''}\n\n"
-        f"⚠️ **Risk**\n{risk}\n\n"
-        f"{price_text}"
-        f"{audience}\n\n"
-        f"👀 **Read**\nMomentum is building naturally.\n"
-        f"واضح الاهتمام عم يكبر بسرعة"
+    risk = risk.replace(
+        "Some reviews suggest the game may need more polish",
+        "Some polish concerns appearing"
+    )
+
+    risk = risk.replace(
+        "Performance/optimization complaints appearing in reviews",
+        "Performance concerns appearing"
     )
 
     embed = {
-        "title": f"🔥 {app['name']} gaining traction",
+        "title": f"{app['name'].upper()}",
         "url": app["steam_url"],
-        "description": description[:4096],
+
+        "description": (
+            f"```yaml\n"
+            f"Signal: {signal}\n"
+            f"Score: {analysis['score']}/100\n"
+            f"Players: {players:,}\n"
+            f"Reviews: {analysis['positive_ratio']}% positive\n"
+            f"Price: {app.get('steam_price', 'N/A')}\n"
+            f"```\n"
+
+            f"📈 {' '.join(short_checks)}\n\n"
+
+            f"⚠️ {risk}\n\n"
+
+            f"🎯 {overlap_text if overlap_text else 'Organic attention building'}"
+        ),
+
         "color": color_from_score(analysis["score"]),
+
         "footer": {
-            "text": f"Steam Signal Bot • AppID {app['appid']}"
+            "text": f"Steam Signal Bot • {status_from_score(analysis['score'])}"
         }
     }
 
     if app.get("header_image"):
-        embed["image"] = {
+        embed["thumbnail"] = {
             "url": app["header_image"]
         }
 
