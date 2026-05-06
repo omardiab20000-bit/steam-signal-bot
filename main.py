@@ -451,46 +451,54 @@ def color_from_score(score):
 def build_discord_embed(app, analysis, players, instant_price, cfg):
 
     signal = "🟢 Strong"
+
     if analysis["score"] < 85:
         signal = "🟡 Building"
+
     if analysis["score"] < 68:
         signal = "🔵 Early"
 
-    short_checks = []
+    checks = []
 
     for c in analysis["checks"][:2]:
 
-        text = simplify_check(c["summary"])
+        text = c["summary"]
 
         text = text.replace(
-            "Strong atmosphere and visual identity",
+            "Atmosphere/vibe is repeatedly showing up",
             "Visual identity catching attention"
         )
 
         text = text.replace(
-            "Gameplay loop keeping attention",
+            "Players keep tying the fun to friends/co-op",
+            "Co-op/social interest increasing"
+        )
+
+        text = text.replace(
+            "Players describe the gameplay loop as sticky",
             "Gameplay loop is sticking"
         )
 
         text = text.replace(
-            "Social/co-op interest rising",
-            "Co-op/social interest increasing"
+            "Mystery/worldbuilding is fueling curiosity",
+            "Curiosity around gameplay is rising"
         )
 
-        short_checks.append(f"• {text}")
+        checks.append(f"✅ {text}")
 
-    if not short_checks:
-        short_checks.append("• Early attention forming")
+    if not checks:
+        checks.append("✅ Early attention forming")
 
-    overlap_text = ""
+    overlap_text = "Organic attention building"
 
     if analysis["overlaps"]:
+
         overlap_names = []
 
         for o in analysis["overlaps"][:2]:
             overlap_names.append(o["label"])
 
-        overlap_text = " | ".join(overlap_names)
+        overlap_text = " • ".join(overlap_names)
 
     risk = analysis["risks"][0]
 
@@ -505,34 +513,46 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
     )
 
     embed = {
-        "title": f"{app['name'].upper()}",
+        "title": f"🔥 {app['name']} gaining traction",
+
         "url": app["steam_url"],
 
         "description": (
-            f"```yaml\n"
-            f"Signal: {signal}\n"
+            "```yaml\n"
+            f"Game: {app['name']}\n"
             f"Score: {analysis['score']}/100\n"
             f"Players: {players:,}\n"
             f"Reviews: {analysis['positive_ratio']}% positive\n"
-            f"Price: {app.get('steam_price', 'N/A')}\n"
-            f"```\n"
+            f"Signal: {status_from_score(analysis['score'])}\n"
+            "```\n\n"
 
-            f"📈 {' '.join(short_checks)}\n\n"
+            f"{checks[0]}\n"
+            f"{checks[1] if len(checks) > 1 else ''}\n\n"
 
-            f"⚠️ {risk}\n\n"
+            f"⚠️ **Risk**\n"
+            f"{risk}\n\n"
 
-            f"🎯 {overlap_text if overlap_text else 'Organic attention building'}"
+            f"💰 **Price**\n"
+            f"Steam — {app.get('steam_price', 'N/A')}\n\n"
+
+            f"🎯 **Audience pull**\n"
+            f"• {overlap_text}\n\n"
+
+            f"👀 **Read**\n"
+            f"Momentum is building naturally.\n"
+            f"واضح الاهتمام عم يكبر بسرعة"
         ),
 
         "color": color_from_score(analysis["score"]),
 
         "footer": {
-            "text": f"Steam Signal Bot • {status_from_score(analysis['score'])}"
+            "text": f"Steam Signal Bot • AppID {app['appid']}"
         }
     }
 
     if app.get("header_image"):
-        embed["thumbnail"] = {
+
+        embed["image"] = {
             "url": app["header_image"]
         }
 
