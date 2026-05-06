@@ -5,7 +5,6 @@ import re
 import time
 import json
 import yaml
-import math
 from pathlib import Path
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
@@ -33,7 +32,7 @@ def load_state():
             return json.loads(STATE_PATH.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {"last_alerts": {}, "snapshots": {}}
+    return {"last_alerts": {}, "snapshots": {}, "startup_sent": False}
 
 
 def save_state(state):
@@ -414,21 +413,21 @@ def analyze_game(app, reviews, players, previous, cfg):
 
 
 def status_from_score(score):
-    if score >= 88:
+    if score >= 85:
         return "🔥 High Watch"
-    if score >= 72:
-        return "👀 Worth watching"
     if score >= 60:
+        return "👀 Worth watching"
+    if score >= 45:
         return "⏳ Watchlist only"
     return "💤 Ignore for now"
 
 
 def color_from_score(score):
-    if score >= 88:
+    if score >= 85:
         return 0x22C55E
-    if score >= 72:
-        return 0xF59E0B
     if score >= 60:
+        return 0xF59E0B
+    if score >= 45:
         return 0x3B82F6
     return 0x6B7280
 
@@ -521,8 +520,8 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
             "inline": False
         })
 
-    system_read = "Strong breakout signal detected." if analysis["score"] >= 88 else (
-        "Strong curiosity momentum detected." if analysis["score"] >= 72 else
+    system_read = "Strong breakout signal detected." if analysis["score"] >= 85 else (
+        "Balanced watch signal detected." if analysis["score"] >= 60 else
         "Early signal forming, but not confirmed yet."
     )
 
@@ -550,11 +549,11 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
 
 
 def can_send_alert(appid, analysis, cfg, state):
-    threshold = float(cfg["bot"].get("alert_threshold", 72))
+    threshold = float(cfg["bot"].get("alert_threshold", 60))
     if analysis["score"] < threshold:
         return False
 
-    cooldown = int(cfg["bot"].get("cooldown_hours", 36)) * 3600
+    cooldown = int(cfg["bot"].get("cooldown_hours", 18)) * 3600
     last = int(state["last_alerts"].get(str(appid), 0))
     return ts_now() - last >= cooldown
 
@@ -601,25 +600,27 @@ async def scan_once():
     cfg = load_config()
     state = load_state()
 
-    webhook_url = os.getenv("https://discord.com/api/webhooks/1501707856402190398/EP-sWk4gaHfOXlOOtt8bes9Cbalgr_GJ6kDkvf_CEZ5RoDUrtzq67DVw3t1tBvwIEK2F
-")
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
 
     print("Webhook loaded:", webhook_url is not None)
 
     if not webhook_url:
         raise RuntimeError("Missing DISCORD_WEBHOOK_URL Railway variable.")
 
-    # Startup test message. Remove this later if you only want real alerts.
-    await send_discord(
-        webhook_url,
-        {
-            "title": "🟢 Steam Signal Bot Online",
-            "description": "System initialized successfully and scanning Steam signals.",
-            "color": 5763719,
-            "fields": []
-        },
-        cfg
-    )
+    # Send startup message only once per container start.
+    if not state.get("startup_sent"):
+        await send_discord(
+            webhook_url,
+            {
+                "title": "🟢 Steam Signal Bot Online",
+                "description": "System initialized successfully. Balanced scan mode is active.",
+                "color": 5763719,
+                "fields": []
+            },
+            cfg
+        )
+        state["startup_sent"] = True
+        save_state(state)
 
     headers = {
         "User-Agent": "SteamSignalBot/3.0 (+Railway Discord bot)"
@@ -640,13 +641,21 @@ async def scan_once():
                     continue
 
                 app, analysis, players = result
-                print(f"Checked {app['name']} | score={analysis['score']} | players={players:,} | reviews={analysis['review_count']}")
+                print(
+                    f"Checked {app['name']} | "
+                    f"score={analysis['score']} | "
+                    f"players={players:,} | "
+                    f"reviews={analysis['review_count']}"
+                )
 
                 if can_send_alert(appid, analysis, cfg, state):
                     instant_price = await instant_gaming_lookup(session, app["name"])
                     embed = build_discord_embed(app, analysis, players, instant_price, cfg)
                     await send_discord(webhook_url, embed, cfg)
+
                     state["last_alerts"][str(appid)] = ts_now()
+                    save_state(state)
+
                     print(f"ALERT SENT: {app['name']} score={analysis['score']}")
 
                 await asyncio.sleep(1.5)
