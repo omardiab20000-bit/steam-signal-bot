@@ -449,84 +449,90 @@ def english_arabic_for_check(cfg, title):
 
 
 def build_discord_embed(app, analysis, players, instant_price, cfg):
-    title = f"👀 ALL EYES ON THIS"
 
-    desc = (
-        f"🎮 **{app['name']}**\n\n"
-        f"🟡 Score — **{analysis['score']}/100**\n"
-        f"🟢 Reviews — **{analysis['positive_ratio']}% Positive**\n"
-        f"🟢 Players — **{players:,} Active**\n"
+checks = []
+
+for c in analysis["checks"][:2]:
+
+    text = c["summary"]
+
+    text = text.replace(
+        "Atmosphere/vibe is repeatedly showing up",
+        "Strong atmosphere and visual identity"
     )
 
-    fields = []
+    text = text.replace(
+        "Players keep tying the fun to friends/co-op",
+        "Social/co-op interest rising"
+    )
 
-    strong_checks = []
+    text = text.replace(
+        "Players describe the gameplay loop as sticky",
+        "Gameplay loop keeping attention"
+    )
 
-    for c in analysis["checks"][:2]:
-        text = c['summary']
-        text = text.replace("Atmosphere/vibe is repeatedly showing up", "Strong atmosphere and visual identity")
-        text = text.replace("Players keep tying the fun to friends/co-op", "Social/co-op interest rising")
-        text = text.replace("Players describe the gameplay loop as sticky", "Gameplay loop keeping attention")
-        text = text.replace("Mystery/worldbuilding is fueling curiosity", "Curiosity around gameplay is rising")
+    text = text.replace(
+        "Mystery/worldbuilding is fueling curiosity",
+        "Curiosity around gameplay is rising"
+    )
 
-        strong_checks.append(f"✅ {text}")
+    checks.append(f"✅ {text}")
 
-    fields.append({
-        "name": "━━━━━━━━━━━━━━━",
-        "value": "\n".join(strong_checks),
-        "inline": False
-    })
+checks_text = "\n".join(checks)
 
-    if analysis["overlaps"]:
-        overlap_lines = []
+audience = ""
 
-        for o in analysis["overlaps"][:2]:
-            overlap_lines.append(f"🎮 {o['label']}")
+if analysis["overlaps"]:
 
-        fields.append({
-            "name": "🎯 Audience Pull",
-            "value": "\n".join(overlap_lines),
-            "inline": False
-        })
+    overlap_names = []
 
-    fields.append({
-        "name": "⚠️ Watch Point",
-        "value": analysis["risks"][0],
-        "inline": False
-    })
+    for o in analysis["overlaps"][:2]:
+        overlap_names.append(o["label"])
 
-    price_text = f"💰 Steam — {app.get('steam_price', 'N/A')}"
+    audience = "\n🎮 " + "\n🎮 ".join(overlap_names)
 
-    if instant_price:
-        price_text += f"\n💰 Instant Gaming — {instant_price}"
+price_text = f"💰 Steam — {app.get('steam_price', 'N/A')}"
 
-    fields.append({
-        "name": "💵 Price Check",
-        "value": price_text,
-        "inline": False
-    })
+if instant_price:
+    price_text += f"\n💰 Instant Gaming — {instant_price}"
 
-    fields.append({
-        "name": "👀 Current Read",
-        "value": "Momentum is building naturally.\nواضح الاهتمام عم يكبر بسرعة",
-        "inline": False
-    })
+embed = {
+    "title": "👀 ALL EYES ON THIS",
 
-    embed = {
-        "title": title[:256],
-        "url": app["steam_url"],
-        "description": desc[:4096],
-        "color": color_from_score(analysis["score"]),
-        "fields": fields[:6],
-        "footer": {
-            "text": f"Steam Signal Bot • AppID {app['appid']}"
-        }
+    "url": app["steam_url"],
+
+    "description": (
+        f"🎮 **{app['name']}**\n\n"
+
+        f"🟡 Score — **{analysis['score']}/100**\n"
+        f"🟢 Reviews — **{analysis['positive_ratio']}% Positive**\n"
+        f"🟢 Players — **{players:,} Active**\n\n"
+
+        f"{checks_text}\n\n"
+
+        f"⚠️ {analysis['risks'][0]}\n\n"
+
+        f"{price_text}\n"
+
+        f"{audience}\n\n"
+
+        f"👀 Momentum is building naturally\n"
+        f"واضح الاهتمام عم يكبر بسرعة"
+    ),
+
+    "color": color_from_score(analysis["score"]),
+
+    "footer": {
+        "text": f"Steam Signal Bot • AppID {app['appid']}"
+    }
+}
+
+if app.get("header_image"):
+    embed["thumbnail"] = {
+        "url": app["header_image"]
     }
 
-    if app.get("header_image"):
-        embed["thumbnail"] = {"url": app["header_image"]}
-
-    return embed
+return embed
 
 
 def can_send_alert(appid, analysis, cfg, state):
