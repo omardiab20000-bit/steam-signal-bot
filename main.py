@@ -603,6 +603,22 @@ async def scan_once():
 
     webhook_url = os.getenv("https://discord.com/api/webhooks/1501707856402190398/EP-sWk4gaHfOXlOOtt8bes9Cbalgr_GJ6kDkvf_CEZ5RoDUrtzq67DVw3t1tBvwIEK2F
 ")
+                            print("Webhook loaded:", webhook_url is not None)
+
+if not webhook_url:
+raise RuntimeError("Missing DISCORD_WEBHOOK_URL Railway variable.")
+
+await send_discord(
+webhook_url,
+{
+"title": "🟢 Steam Signal Bot Online",
+"description": "System initialized successfully and scanning Steam signals.",
+"color": 5763719,
+"fields": []
+},
+cfg
+)
+
     if not webhook_url:
         raise RuntimeError("Missing DISCORD_WEBHOOK_URL Railway variable.")
 
