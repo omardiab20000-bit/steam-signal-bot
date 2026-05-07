@@ -628,7 +628,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0,
         "url": app["steam_url"],
         "color": color_from_score(analysis["score"]),
         "description":
-            f"```yaml\n"
+            f"```\n"
             f"Game: {app['name']}\n"
             f"Score: {analysis['score']}/100\n"
             f"Players: {players:,}\n"
