@@ -440,9 +440,9 @@ def status_from_score(score):
 
 def color_from_score(score):
     if score >= 85:
-        return 0x00FF99
+        return 0x22C55E
     if score >= 68:
-        return 0xFFB800
+        return 0xFACC15
     if score >= 50:
         return 0x3B82F6
     return 0x6B7280
@@ -498,7 +498,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
         for o in analysis["overlaps"][:2]:
             overlap_names.append(o["label"])
 
-        overlap_text = " • ".join(overlap_names)
+        overlap_text = "\n• " + "\n• ".join(overlap_names)
 
     risk = analysis["risks"][0]
 
@@ -518,7 +518,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
         "url": app["steam_url"],
 
         "description": (
-            "```yaml\n"
+            "```fix\n"
             f"Game: {app['name']}\n"
             f"Score: {analysis['score']}/100\n"
             f"Players: {players:,}\n"
@@ -546,7 +546,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
         "color": color_from_score(analysis["score"]),
 
         "footer": {
-            "text": f"Steam Signal Bot • AppID {app['appid']}"
+            "text": f"Gustave ~ صانع القرارات • AppID {app['appid']}"
         }
     }
 
@@ -570,7 +570,7 @@ def can_send_alert(appid, analysis, cfg, state):
 
 
 async def send_discord(webhook_url, embed, cfg):
-    username = cfg.get("discord", {}).get("username") or "Steam Signal Bot"
+    username = cfg.get("discord", {}).get("username") or "Gustave ~ صانع القرارات"
     avatar_url = cfg.get("discord", {}).get("avatar_url") or None
 
     payload = {
