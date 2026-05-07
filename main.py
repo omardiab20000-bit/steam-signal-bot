@@ -583,16 +583,16 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0,
     if not checks:
         checks.append("✅ Early attention forming")
 
-    overlap_text = "Organic attention building"
+   overlap_text = "Organic attention building"
 
-    if analysis["overlaps"]:
-        overlap_names = [
-            o["label"] for o in analysis["overlaps"][:2]
-        ]
+if analysis["overlaps"]:
+    overlap_names = [
+        o["label"] for o in analysis["overlaps"][:2]
+    ]
 
-       overlap_text = "\n• " + "\n• ".join(overlap_names)
+    overlap_text = "\n• " + "\n• ".join(overlap_names)
 
-    risk = analysis["risks"][0]
+risk = analysis["risks"][0]
 
     risk = risk.replace(
         "Some reviews suggest the game may need more polish",
