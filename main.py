@@ -628,31 +628,32 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0,
         "title": f"{title_prefix} {app['name']} gaining traction",
         "url": app["steam_url"],
 
-        "description": (
-            "```fix\\n"
-            f"Game: {app['name']}\\n"
-            f"Score: {analysis['score']}/100\\n"
-            f"Players: {players:,}\\n"
-            f"Reviews: {analysis['positive_ratio']}% positive\\n"
-            f"{spike_line}"
-            f"Signal: {status_from_score(analysis['score'])}\\n"
-            "```\\n\\n"
+       "description": (
+    "```fix\n"
+    f"Game: {app['name']}\n"
+    f"Score: {analysis['score']}/100\n"
+    f"Players: {players:,}\n"
+    f"Reviews: {analysis['positive_ratio']}% positive\n"
+    f"{spike_line}"
+    f"Signal: {status_from_score(analysis['score'])}\n"
+    "```\n\n"
 
-            f"{checks[0]}\\n"
-            f"{checks[1] if len(checks) > 1 else ''}\\n\\n"
+    f"{checks[0]}\n"
+    f"{checks[1] if len(checks) > 1 else ''}\n\n"
 
-            f"⚠️ **Risk**\\n"
-            f"{risk}\\n\\n"
+    f"⚠️ Risk\n"
+    f"{risk}\n\n"
 
-            f"💰 **Price**\\n"
-            f"{price_text}\\n\\n"
+    f"💰 Price\n"
+    f"{price_text}\n\n"
 
-            f"🎯 **Audience Pull**\\n"
-            f"{overlap_text}\\n\\n"
+    f"🎯 Audience Pull\n"
+    f"{overlap_text}\n\n"
 
-            f"👀 **Read**\\n"
-            f"{read_en}\\n"
-            f"{read_ar}"
+    f"👀 Read\n"
+    f"{read_en}\n"
+    f"{read_ar}"
+),
         ),
 
         "color": color_from_score(
