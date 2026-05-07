@@ -590,7 +590,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0,
             o["label"] for o in analysis["overlaps"][:2]
         ]
 
-        overlap_text = "\\n• " + "\\n• ".join(overlap_names)
+       overlap_text = "\n• " + "\n• ".join(overlap_names)
 
     risk = analysis["risks"][0]
 
