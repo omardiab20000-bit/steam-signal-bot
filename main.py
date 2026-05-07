@@ -551,17 +551,16 @@ def color_from_score(score, spike_pct=0):
     return 0x6B7280
 
 
-def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0, baseline_players=0):
+````python
+def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0):
+    title = f"🔥 {app['name']} gaining traction"
+
+    signal = status_from_score(analysis["score"])
 
     checks = []
 
     for c in analysis["checks"][:2]:
         text = c["summary"]
-
-        text = text.replace(
-            "Atmosphere/vibe is repeatedly showing up",
-            "Strong atmosphere and visual identity"
-        )
 
         text = text.replace(
             "Players keep tying the fun to friends/co-op",
@@ -583,16 +582,16 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0,
     if not checks:
         checks.append("✅ Early attention forming")
 
-   overlap_text = "Organic attention building"
+    overlap_text = "Organic attention building"
 
-if analysis["overlaps"]:
-    overlap_names = [
-        o["label"] for o in analysis["overlaps"][:2]
-    ]
+    if analysis["overlaps"]:
+        overlap_names = [
+            o["label"] for o in analysis["overlaps"][:2]
+        ]
 
-    overlap_text = "\n• " + "\n• ".join(overlap_names)
+        overlap_text = "\n• " + "\n• ".join(overlap_names)
 
-risk = analysis["risks"][0]
+    risk = analysis["risks"][0]
 
     risk = risk.replace(
         "Some reviews suggest the game may need more polish",
@@ -604,62 +603,50 @@ risk = analysis["risks"][0]
         "Performance concerns appearing"
     )
 
-    read_en, read_ar = market_read_line(
-        analysis,
-        spike_pct
-    )
+    read_en = "Momentum is building naturally."
+    read_ar = "واضح الاهتمام عم يكبر بسرعة"
+
+    if spike_pct >= 40:
+        read_en = "Sudden player spike detected."
+        read_ar = "في ارتفاع مفاجئ بالاهتمام"
+
+    elif spike_pct >= 25:
+        read_en = "Player momentum accelerating."
+        read_ar = "الاهتمام عم يتسارع"
 
     spike_line = ""
 
-    if baseline_players > 0 and spike_pct >= 25:
-        spike_line = (
-            f"3D Volume Spike: +{spike_pct}%\\n"
-            f"Baseline: {baseline_players:,}\\n"
-        )
+    if spike_pct >= 25:
+        spike_line = f"\nVolume Spike: +{spike_pct}%"
 
     price_text = f"Steam — {app.get('steam_price', 'N/A')}"
 
     if instant_price:
-        price_text += f"\\nInstant Gaming — {instant_price}"
-
-    title_prefix = "🚨" if spike_pct >= 60 else "🔥"
+        price_text += f"\nInstant Gaming — {instant_price}"
 
     embed = {
-        "title": f"{title_prefix} {app['name']} gaining traction",
+        "title": title,
         "url": app["steam_url"],
-
-       "description": (
-    "```fix\n"
-    f"Game: {app['name']}\n"
-    f"Score: {analysis['score']}/100\n"
-    f"Players: {players:,}\n"
-    f"Reviews: {analysis['positive_ratio']}% positive\n"
-    f"{spike_line}"
-    f"Signal: {status_from_score(analysis['score'])}\n"
-    "```\n\n"
-
-    f"{checks[0]}\n"
-    f"{checks[1] if len(checks) > 1 else ''}\n\n"
-
-    f"⚠️ Risk\n"
-    f"{risk}\n\n"
-
-    f"💰 Price\n"
-    f"{price_text}\n\n"
-
-    f"🎯 Audience Pull\n"
-    f"{overlap_text}\n\n"
-
-    f"👀 Read\n"
-    f"{read_en}\n"
-    f"{read_ar}"
-),
-        ),
-
-        "color": color_from_score(
-            analysis["score"],
-            spike_pct
-        ),
+        "color": color_from_score(analysis["score"]),
+        "description":
+            f"```yaml\n"
+            f"Game: {app['name']}\n"
+            f"Score: {analysis['score']}/100\n"
+            f"Players: {players:,}\n"
+            f"Reviews: {analysis['positive_ratio']}% positive\n"
+            f"Signal: {signal}"
+            f"{spike_line}\n"
+            f"```\n\n"
+            f"{chr(10).join(checks)}\n\n"
+            f"⚠️ Risk\n"
+            f"{risk}\n\n"
+            f"💰 Price\n"
+            f"{price_text}\n\n"
+            f"🎯 Audience Pull"
+            f"{overlap_text}\n\n"
+            f"👀 Read\n"
+            f"{read_en}\n"
+            f"{read_ar}",
 
         "footer": {
             "text": f"Gustave ~ صانع القرارات • AppID {app['appid']}"
@@ -672,6 +659,8 @@ risk = analysis["risks"][0]
         }
 
     return embed
+````
+
 
 def can_send_alert(appid, analysis, cfg, state, spike_pct=0):
     threshold = float(cfg["bot"].get("alert_threshold", 68))
