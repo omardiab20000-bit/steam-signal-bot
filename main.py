@@ -551,7 +551,7 @@ def color_from_score(score, spike_pct=0):
     return 0x6B7280
 
 
-def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0):
+def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0, baseline_players=0):
     title = f"🔥 {app['name']} gaining traction"
 
     signal = status_from_score(analysis["score"])
