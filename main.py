@@ -658,7 +658,7 @@ def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0)
         }
 
     return embed
-````
+
 
 
 def can_send_alert(appid, analysis, cfg, state, spike_pct=0):
