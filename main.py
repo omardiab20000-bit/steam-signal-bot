@@ -5,6 +5,7 @@ import re
 import time
 import json
 import yaml
+import random
 from pathlib import Path
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
@@ -14,6 +15,7 @@ load_dotenv()
 
 CONFIG_PATH = Path("config.yaml")
 STATE_PATH = Path("state.json")
+BOT_NAME = "Gustave ~ صانع القرارات"
 
 STEAM_REVIEWS_URL = "https://store.steampowered.com/appreviews/{appid}"
 STEAM_APPDETAILS_URL = "https://store.steampowered.com/api/appdetails"
@@ -29,10 +31,21 @@ def load_config():
 def load_state():
     if STATE_PATH.exists():
         try:
-            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            data.setdefault("last_alerts", {})
+            data.setdefault("snapshots", {})
+            data.setdefault("player_history", {})
+            data.setdefault("startup_sent", False)
+            return data
         except Exception:
             pass
-    return {"last_alerts": {}, "snapshots": {}, "startup_sent": False}
+
+    return {
+        "last_alerts": {},
+        "snapshots": {},
+        "player_history": {},
+        "startup_sent": False
+    }
 
 
 def save_state(state):
@@ -310,6 +323,87 @@ def simplify_check(text):
     return text
 
 
+
+def update_player_history(state, appid, players):
+    now = ts_now()
+    key = str(appid)
+
+    history = state.setdefault("player_history", {}).setdefault(key, [])
+    history.append({"time": now, "players": int(players)})
+
+    cutoff = now - (4 * 24 * 3600)
+    history = [x for x in history if int(x.get("time", 0)) >= cutoff]
+    state["player_history"][key] = history
+
+    return history
+
+
+def calculate_volume_spike(history, current_players):
+    now = ts_now()
+    three_days_ago = now - (3 * 24 * 3600)
+
+    baseline_points = [
+        int(x.get("players", 0))
+        for x in history
+        if int(x.get("time", 0)) >= three_days_ago
+    ]
+
+    if len(baseline_points) >= 3:
+        baseline_points = baseline_points[:-1]
+
+    if not baseline_points:
+        return 0.0, 0
+
+    baseline = sum(baseline_points) / len(baseline_points)
+
+    if baseline <= 0:
+        return 0.0, int(baseline)
+
+    spike_pct = ((current_players - baseline) / baseline) * 100
+    return round(spike_pct, 1), int(baseline)
+
+
+def market_read_line(analysis, spike_pct):
+    if spike_pct >= 150:
+        options = [
+            ("🚨 Volume spike is unusually strong.", "في قفزة قوية وغير عادية بعدد اللاعبين"),
+            ("🚨 Sudden breakout behavior detected.", "في إشارات انفجار مفاجئ حول اللعبة"),
+            ("🚨 Player activity is expanding fast.", "نشاط اللاعبين عم يتوسع بسرعة")
+        ]
+    elif spike_pct >= 60:
+        options = [
+            ("📈 Momentum is accelerating.", "الزخم عم يتسارع بشكل واضح"),
+            ("📈 More players are rotating into this.", "واضح لاعبين أكثر عم يدخلوا على اللعبة"),
+            ("📈 Attention is building faster than normal.", "الاهتمام عم يكبر أسرع من الطبيعي")
+        ]
+    elif analysis.get("hype_key") == "social":
+        options = [
+            ("🤝 Social pull is doing the work here.", "واضح المتعة الاجتماعية عم تدفع اللعبة"),
+            ("🤝 Co-op energy is helping this move.", "طاقة اللعب الجماعي عم تساعد اللعبة تتحرك"),
+            ("🤝 Players are bringing friends into this.", "اللاعبين عم يسحبوا أصحابهم على اللعبة")
+        ]
+    elif analysis.get("hype_key") == "organic":
+        options = [
+            ("👀 Organic attention is forming.", "في اهتمام طبيعي عم يتشكل حول اللعبة"),
+            ("👀 This is gaining attention without feeling forced.", "الاهتمام عم يكبر بطريقة طبيعية مو مصطنعة"),
+            ("👀 Early organic traction is appearing.", "في جذب طبيعي مبكر عم يظهر")
+        ]
+    elif analysis.get("hype_key") == "streamer":
+        options = [
+            ("🎥 Creator-driven attention is showing up.", "واضح في اهتمام جاي من صناع المحتوى"),
+            ("🎥 Clip potential is helping the move.", "قابلية الكليبات عم تساعد اللعبة تنتشر"),
+            ("🎥 Streamer energy may be feeding this.", "ممكن طاقة الستريمرز عم تغذي الزخم")
+        ]
+    else:
+        options = [
+            ("👀 Momentum is building naturally.", "واضح الاهتمام عم يكبر بسرعة"),
+            ("📈 Interest is climbing steadily.", "الاهتمام عم يرتفع بشكل تدريجي"),
+            ("🎯 Engagement patterns are getting stronger.", "أنماط التفاعل عم تصير أقوى")
+        ]
+
+    return random.choice(options)
+
+
 def analyze_game(app, reviews, players, previous, cfg):
     blob = " ".join(r["text"] for r in reviews)
     review_count = len(reviews)
@@ -438,53 +532,30 @@ def status_from_score(score):
     return "Ignore"
 
 
-def color_from_score(score):
+def color_from_score(score, spike_pct=0):
+    if spike_pct >= 150:
+        return 0xFF5555
+
+    if spike_pct >= 60:
+        return 0xFFB800
+
     if score >= 85:
         return 0x22C55E
+
     if score >= 68:
         return 0xFACC15
+
     if score >= 50:
         return 0x3B82F6
+
     return 0x6B7280
 
 
-def build_discord_embed(app, analysis, players, instant_price, cfg):
-
-    signal = "🟢 Strong"
-
-    if analysis["score"] < 85:
-        signal = "🟡 Building"
-
-    if analysis["score"] < 68:
-        signal = "🔵 Early"
-
+def build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct=0, baseline_players=0):
     checks = []
 
     for c in analysis["checks"][:2]:
-
-        text = c["summary"]
-
-        text = text.replace(
-            "Atmosphere/vibe is repeatedly showing up",
-            "Visual identity catching attention"
-        )
-
-        text = text.replace(
-            "Players keep tying the fun to friends/co-op",
-            "Co-op/social interest increasing"
-        )
-
-        text = text.replace(
-            "Players describe the gameplay loop as sticky",
-            "Gameplay loop is sticking"
-        )
-
-        text = text.replace(
-            "Mystery/worldbuilding is fueling curiosity",
-            "Curiosity around gameplay is rising"
-        )
-
-        checks.append(f"✅ {text}")
+        checks.append(f"✅ {simplify_check(c['summary'])}")
 
     if not checks:
         checks.append("✅ Early attention forming")
@@ -492,66 +563,88 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
     overlap_text = "Organic attention building"
 
     if analysis["overlaps"]:
-
-        overlap_names = []
-
-        for o in analysis["overlaps"][:2]:
-            overlap_names.append(o["label"])
-
-        overlap_text = "\n• " + "\n• ".join(overlap_names)
+        overlap_names = [o["label"] for o in analysis["overlaps"][:2]]
+        overlap_text = "
+• " + "
+• ".join(overlap_names)
 
     risk = analysis["risks"][0]
+    risk = risk.replace("Some reviews suggest the game may need more polish", "Some polish concerns appearing")
+    risk = risk.replace("Performance/optimization complaints appearing in reviews", "Performance concerns appearing")
 
-    risk = risk.replace(
-        "Some reviews suggest the game may need more polish",
-        "Some polish concerns appearing"
-    )
+    read_en, read_ar = market_read_line(analysis, spike_pct)
 
-    risk = risk.replace(
-        "Performance/optimization complaints appearing in reviews",
-        "Performance concerns appearing"
-    )
+    spike_line = ""
+    if baseline_players > 0 and spike_pct >= 25:
+        spike_line = f"3D Volume Spike: +{spike_pct}%
+Baseline: {baseline_players:,}
+"
+
+    price_text = f"Steam — {app.get('steam_price', 'N/A')}"
+    if instant_price:
+        price_text += f"
+Instant Gaming — {instant_price}"
+
+    title_prefix = "🚨" if spike_pct >= 60 else "🔥"
 
     embed = {
-        "title": f"🔥 {app['name']} gaining traction",
-
+        "title": f"{title_prefix} {app['name']} gaining traction",
         "url": app["steam_url"],
-
         "description": (
-            "```fix\n"
-            f"Game: {app['name']}\n"
-            f"Score: {analysis['score']}/100\n"
-            f"Players: {players:,}\n"
-            f"Reviews: {analysis['positive_ratio']}% positive\n"
-            f"Signal: {status_from_score(analysis['score'])}\n"
-            "```\n\n"
+            "```fix
+"
+            f"Game: {app['name']}
+"
+            f"Score: {analysis['score']}/100
+"
+            f"Players: {players:,}
+"
+            f"Reviews: {analysis['positive_ratio']}% positive
+"
+            f"{spike_line}"
+            f"Signal: {status_from_score(analysis['score'])}
+"
+            "```
 
-            f"{checks[0]}\n"
-            f"{checks[1] if len(checks) > 1 else ''}\n\n"
+"
 
-            f"⚠️ **Risk**\n"
-            f"{risk}\n\n"
+            f"{checks[0]}
+"
+            f"{checks[1] if len(checks) > 1 else ''}
 
-            f"💰 **Price**\n"
-            f"Steam — {app.get('steam_price', 'N/A')}\n\n"
+"
 
-            f"🎯 **Audience pull**\n"
-            f"• {overlap_text}\n\n"
+            f"⚠️ **Risk**
+"
+            f"{risk}
 
-            f"👀 **Read**\n"
-            f"Momentum is building naturally.\n"
-            f"واضح الاهتمام عم يكبر بسرعة"
+"
+
+            f"💰 **Price**
+"
+            f"{price_text}
+
+"
+
+            f"🎯 **Audience Pull**
+"
+            f"{overlap_text}
+
+"
+
+            f"👀 **Read**
+"
+            f"{read_en}
+"
+            f"{read_ar}"
         ),
-
-        "color": color_from_score(analysis["score"]),
-
+        "color": color_from_score(analysis["score"], spike_pct),
         "footer": {
-            "text": f"Gustave ~ صانع القرارات • AppID {app['appid']}"
+            "text": f"{BOT_NAME} • AppID {app['appid']}"
         }
     }
 
     if app.get("header_image"):
-
         embed["image"] = {
             "url": app["header_image"]
         }
@@ -559,18 +652,24 @@ def build_discord_embed(app, analysis, players, instant_price, cfg):
     return embed
 
 
-def can_send_alert(appid, analysis, cfg, state):
+def can_send_alert(appid, analysis, cfg, state, spike_pct=0):
     threshold = float(cfg["bot"].get("alert_threshold", 68))
-    if analysis["score"] < threshold:
+    spike_threshold = float(cfg["bot"].get("volume_spike_threshold", 60))
+
+    score_pass = analysis["score"] >= threshold
+    spike_pass = spike_pct >= spike_threshold and analysis["positive_ratio"] >= 65
+
+    if not score_pass and not spike_pass:
         return False
 
     cooldown = int(cfg["bot"].get("cooldown_hours", 24)) * 3600
     last = int(state["last_alerts"].get(str(appid), 0))
+
     return ts_now() - last >= cooldown
 
 
 async def send_discord(webhook_url, embed, cfg):
-    username = cfg.get("discord", {}).get("username") or "Gustave ~ صانع القرارات"
+    username = cfg.get("discord", {}).get("username") or BOT_NAME
     avatar_url = cfg.get("discord", {}).get("avatar_url") or None
 
     payload = {
@@ -589,13 +688,17 @@ async def send_discord(webhook_url, embed, cfg):
 
 async def analyze_one(session, appid, cfg, state):
     app = await steam_app_details(session, appid, cfg)
+
     if not app:
         return None
 
     reviews, _ = await steam_recent_reviews(session, appid, cfg)
     players = await steam_current_players(session, appid)
-    previous = state["snapshots"].get(str(appid))
 
+    history = update_player_history(state, appid, players)
+    spike_pct, baseline_players = calculate_volume_spike(history, players)
+
+    previous = state["snapshots"].get(str(appid))
     analysis = analyze_game(app, reviews, players, previous, cfg)
 
     state["snapshots"][str(appid)] = {
@@ -604,7 +707,7 @@ async def analyze_one(session, appid, cfg, state):
         "checked_at": ts_now()
     }
 
-    return app, analysis, players
+    return app, analysis, players, spike_pct, baseline_players
 
 
 async def scan_once():
@@ -622,8 +725,8 @@ async def scan_once():
         await send_discord(
             webhook_url,
             {
-                "title": "🟢 Steam Signal Bot Online",
-                "description": "System initialized successfully. Premium compact mode is active.",
+                "title": "🟢 Gustave Online",
+                "description": "Premium compact mode is active. Volume spike tracking is enabled.",
                 "color": 5763719,
                 "fields": []
             },
@@ -633,7 +736,7 @@ async def scan_once():
         save_state(state)
 
     headers = {
-        "User-Agent": "SteamSignalBot/3.0 (+Railway Discord bot)"
+        "User-Agent": "SteamSignalBot/4.0 (+Railway Discord bot)"
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
@@ -650,23 +753,24 @@ async def scan_once():
                 if not result:
                     continue
 
-                app, analysis, players = result
+                app, analysis, players, spike_pct, baseline_players = result
                 print(
                     f"Checked {app['name']} | "
                     f"score={analysis['score']} | "
                     f"players={players:,} | "
+                    f"3d_spike={spike_pct}% | "
                     f"reviews={analysis['review_count']}"
                 )
 
-                if can_send_alert(appid, analysis, cfg, state):
+                if can_send_alert(appid, analysis, cfg, state, spike_pct):
                     instant_price = await instant_gaming_lookup(session, app["name"])
-                    embed = build_discord_embed(app, analysis, players, instant_price, cfg)
+                    embed = build_discord_embed(app, analysis, players, instant_price, cfg, spike_pct, baseline_players)
                     await send_discord(webhook_url, embed, cfg)
 
                     state["last_alerts"][str(appid)] = ts_now()
                     save_state(state)
 
-                    print(f"ALERT SENT: {app['name']} score={analysis['score']}")
+                    print(f"ALERT SENT: {app['name']} score={analysis['score']} spike={spike_pct}%")
 
                 await asyncio.sleep(1.5)
 
@@ -678,7 +782,7 @@ async def scan_once():
 
 async def main():
     cfg = load_config()
-    minutes = int(cfg["bot"].get("scan_minutes", 60))
+    minutes = int(cfg["bot"].get("scan_minutes", 140))
 
     while True:
         started = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
